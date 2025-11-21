@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tronget/pr-management-service/internal/config"
 )
 
 type DB interface {
@@ -56,6 +57,6 @@ func (d *db) Close() {
 	}
 }
 
-func New(dsn string) DB {
-	return &db{dsn: dsn}
+func New(cfg *config.Config) DB {
+	return &db{dsn: cfg.DbUrl}
 }

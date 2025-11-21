@@ -10,9 +10,9 @@ import (
 
 type Config struct {
 	HTTP struct {
-		Port         int           `env:"HTTP_PORT" default:"8080"`
-		ReadTimeout  time.Duration `env:"HTTP_READ_TIMEOUT" default:"5s"`
-		WriteTimeout time.Duration `env:"HTTP_WRITE_TIMEOUT" default:"10s"`
+		Address      string        `env:"HTTP_ADDRESS" env-required:"true"`
+		ReadTimeout  time.Duration `env:"HTTP_READ_TIMEOUT"`
+		WriteTimeout time.Duration `env:"HTTP_WRITE_TIMEOUT"`
 	}
 	DbUrl string `env:"DB_URL" env-required:"true"`
 }
