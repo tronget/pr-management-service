@@ -45,8 +45,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (user_id) DO UPDATE
 	SET username = EXCLUDED.username,
 		team_name = EXCLUDED.team_name,
-		is_active = EXCLUDED.is_active,
-		updated_at = NOW()
+		is_active = EXCLUDED.is_active
 RETURNING user_id, username, is_active`
 
 	if len(members) == 0 {
