@@ -24,10 +24,7 @@ func init() {
 func TestMain(m *testing.M) {
 	flag.Parse()
 	if testDBURL == "" {
-		testDBURL = os.Getenv("DB_URL")
-	}
-	if testDBURL == "" {
-		panic("set INTEGRATION_DB_URL or DB_URL for integration tests")
+		panic("set INTEGRATION_DB_URL for integration tests")
 	}
 
 	code := m.Run()

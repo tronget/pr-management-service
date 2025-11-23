@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     container_name: pr_management_db
     environment:
-      POSTGRES_USER: pr_user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: pr_password
       POSTGRES_DB: pr_db
     volumes:
@@ -12,10 +12,68 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pr_user -d pr_db"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d pr_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  test-db-migrator:
+    profiles: ["test"]
+    image: postgres:15-alpine
+    container_name: pr_management_test_db_migrator
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    entrypoint: ["/bin/sh","-c"]
+    command: |
+      set -e
+      echo "[test-db-migrator] Installing psql client (already present in image)."
+      export PGPASSWORD=pr_password
+      until psql -U postgres -h db -d postgres -c '\q' >/dev/null 2>&1; do echo '[test-db-migrator] Waiting for DB...'; sleep 1; done
+      echo "[test-db-migrator] Ensuring pr_test_db exists.";
+      if ! psql -U postgres -h db -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'pr_test_db'" | grep -q 1; then
+        psql -U postgres -h db -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE pr_test_db WITH OWNER postgres TEMPLATE template0";
+        echo "[test-db-migrator] Created pr_test_db.";
+      else
+        echo "[test-db-migrator] pr_test_db already exists.";
+      fi
+      echo "[test-db-migrator] Checking if schema needs applying.";
+      if ! psql -U postgres -h db -d pr_test_db -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='pull_requests'" | grep -q 1; then
+        echo "[test-db-migrator] Applying migrations to pr_test_db.";
+        for f in /migrations/*.sql; do
+          [ -f "$f" ] || continue
+          echo "[test-db-migrator] Applying $f";
+          psql -U postgres -h db -d pr_test_db -v ON_ERROR_STOP=1 -f "$f"
+        done
+        echo "[test-db-migrator] Migrations applied.";
+      else
+        echo "[test-db-migrator] Schema already present; skipping.";
+      fi
+      echo "[test-db-migrator] Done.";
+
+  integration-tests:
+    profiles: ["test"]
+    image: golang:1.25-alpine
+    container_name: pr_management_integration_tests
+    working_dir: /go/src/app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/go/src/app
+    environment:
+      INTEGRATION_DB_URL: "postgres://postgres:pr_password@db:5432/pr_test_db?sslmode=disable"
+    command: >
+      sh -c "
+        set -e;
+        apk add --no-cache postgresql-client >/dev/null 2>&1;
+        echo '⏳ Waiting for pr_test_db...';
+        until psql postgres://postgres:pr_password@db:5432/pr_test_db?sslmode=disable -c '\\q' >/dev/null 2>&1; do sleep 1; done;
+        echo '🧪 Running integration tests...';
+        go test ./... -tags=integration -v
+      "
 
   app:
     build:
@@ -24,7 +82,7 @@ services:
     container_name: pr_management_app
     environment:
       HTTP_ADDRESS: ":8080"
-      DB_URL: "postgres://pr_user:pr_password@db:5432/pr_db?sslmode=disable"
+      DB_URL: "postgres://postgres:pr_password@db:5432/pr_db?sslmode=disable"
     depends_on:
       db:
         condition: service_healthy
@@ -33,4 +91,3 @@ services:
 
 volumes:
   postgres-data:
-
