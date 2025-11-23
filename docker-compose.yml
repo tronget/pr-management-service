@@ -13,9 +13,10 @@ services:
       - "5432:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres -d pr_db" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
 
   integration-tests:
     profiles: ["test"]
