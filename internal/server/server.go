@@ -29,19 +29,23 @@ func New(cfg *config.Config, dbPool *pgxpool.Pool) Server {
 }
 
 func (s *server) Start() error {
+	r := Handler(s.dbPool)
+	return http.ListenAndServe(s.cfg.HTTP.Address, r)
+}
 
+func Handler(pool *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Mount("/team", team.NewRouter(s.dbPool))
-	r.Mount("/users", user.NewRouter(s.dbPool))
-	r.Mount("/pullRequest", pr.NewRouter(s.dbPool))
+	r.Mount("/team", team.NewRouter(pool))
+	r.Mount("/users", user.NewRouter(pool))
+	r.Mount("/pullRequest", pr.NewRouter(pool))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
 
-	return http.ListenAndServe(s.cfg.HTTP.Address, r)
+	return r
 }
